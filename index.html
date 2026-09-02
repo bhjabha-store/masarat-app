@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -126,6 +127,9 @@ h1{
   font-size:11px;
   color:#c9d6cf;
   margin-inline-start:auto;
+  cursor:pointer;
+  text-decoration:underline;
+  text-decoration-style:dotted;
 }
 .sync-status.live{color:#9fe0b8;}
 .sync-status.error{color:#e5a3a3;}
@@ -818,7 +822,7 @@ footer{
     <button id="exportBtn" class="backup-btn">⬇️ تصدير نسخة احتياطية</button>
     <label class="backup-btn" for="importFile">⬆️ استيراد نسخة</label>
     <input type="file" id="importFile" accept="application/json" style="display:none;">
-    <span id="syncStatus" class="sync-status">💾 حفظ محلي فقط</span>
+    <span id="syncStatus" class="sync-status" title="اضغط لعرض تفاصيل آخر خطأ">💾 حفظ محلي فقط</span>
   </div>
 </header>
 
@@ -948,7 +952,10 @@ function rowToRecord(row){
 async function sbFetchAll(){
   const url = `${sbConfig.url}/rest/v1/${sbConfig.table}?select=*&order=seq.asc`;
   const res = await fetch(url, { headers: sbHeaders() });
-  if(!res.ok) throw new Error("Supabase fetch failed: " + res.status);
+  if(!res.ok){
+    const txt = await res.text().catch(()=> "");
+    throw new Error(`(${res.status}) ${extractSbMessage(txt) || res.statusText}`);
+  }
   const rows = await res.json();
   return rows.map(rowToRecord);
 }
@@ -962,9 +969,21 @@ async function sbUpsertAll(records){
   });
   if(!res.ok){
     const txt = await res.text().catch(()=> "");
-    throw new Error("Supabase upsert failed: " + res.status + " " + txt);
+    throw new Error(`(${res.status}) ${extractSbMessage(txt) || res.statusText}`);
   }
 }
+
+function extractSbMessage(txt){
+  if(!txt) return "";
+  try{
+    const j = JSON.parse(txt);
+    return j.message || j.hint || j.error_description || j.error || txt.slice(0,180);
+  }catch(e){
+    return txt.slice(0,180);
+  }
+}
+
+let lastSyncError = "";
 
 function setSyncStatus(text, cls){
   const el = document.getElementById("syncStatus");
@@ -978,9 +997,11 @@ async function syncToSupabase(){
   try{
     await sbUpsertAll(DATA);
     setSyncStatus("☁️ تمت المزامنة السحابية", "live");
+    lastSyncError = "";
   }catch(e){
     console.warn("Supabase sync error", e);
-    setSyncStatus("⚠️ تعذرت المزامنة السحابية (محفوظ محليًا)", "error");
+    lastSyncError = e.message || String(e);
+    setSyncStatus("⚠️ تعذرت المزامنة (اضغط للتفاصيل)", "error");
   }
 }
 
@@ -1046,7 +1067,8 @@ async function loadData(){
       }
     }catch(e){
       console.warn("Supabase load failed, falling back", e);
-      setSyncStatus("⚠️ تعذر الاتصال بـ Supabase (تم التحميل من النسخة المحلية)", "error");
+      lastSyncError = e.message || String(e);
+      setSyncStatus("⚠️ تعذر الاتصال (اضغط للتفاصيل)", "error");
     }
   }
   if(hasCloudStorage()){
@@ -1511,6 +1533,15 @@ function openSettings(){
 function closeSettings(){ settingsModal.classList.remove("open"); }
 
 document.getElementById("settingsBtn").addEventListener("click", openSettings);
+document.getElementById("syncStatus").addEventListener("click", ()=>{
+  if(lastSyncError){
+    showToast(lastSyncError, "error");
+  }else if(hasSupabase()){
+    showToast("المزامنة السحابية تعمل بشكل سليم ✓");
+  }else{
+    showToast("المزامنة السحابية غير مفعّلة حاليًا — اضغط ⚙️ للإعداد");
+  }
+});
 document.getElementById("sbCloseBtn").addEventListener("click", closeSettings);
 settingsModal.addEventListener("click", e=>{ if(e.target === settingsModal) closeSettings(); });
 sbTableInput.addEventListener("input", ()=>{
