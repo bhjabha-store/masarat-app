@@ -806,6 +806,173 @@ footer{
   font-size:11px;
   color:var(--neutral);
 }
+
+/* ===== Detailed Report ===== */
+.report-view{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:#fff;
+  z-index:300;
+  overflow-y:auto;
+}
+.report-view.open{display:block;}
+.report-toolbar{
+  position:sticky;
+  top:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  background:var(--pine-deep);
+  color:#fff;
+  padding:12px 14px;
+  z-index:2;
+}
+.report-tb-title{
+  font-family:'Tajawal',sans-serif;
+  font-weight:700;
+  font-size:14px;
+}
+.report-tb-btn{
+  font-family:'Tajawal',sans-serif;
+  font-size:12.5px;
+  font-weight:500;
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.report-tb-btn.primary{
+  background:#fff;
+  color:var(--pine-deep);
+  border-color:#fff;
+}
+.report-content{
+  padding:18px;
+  max-width:820px;
+  margin:0 auto;
+  color:#1a1a1a;
+  font-family:'Tajawal',sans-serif;
+}
+.report-content h1{
+  font-size:19px;
+  margin:0 0 2px;
+  color:var(--pine-deep);
+}
+.report-content .r-meta{
+  font-size:12px;
+  color:#666;
+  margin-bottom:16px;
+}
+.report-summary{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:8px;
+  margin-bottom:20px;
+  padding:12px;
+  background:#f6f4ee;
+  border-radius:10px;
+  border:1px solid #ddd;
+}
+.report-summary .rs-item{
+  text-align:center;
+  font-size:11.5px;
+}
+.report-summary .rs-item b{
+  display:block;
+  font-size:16px;
+  font-family:'IBM Plex Mono',monospace;
+  color:var(--pine-deep);
+}
+.report-activity{
+  border:1px solid #ddd;
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:12px;
+  page-break-inside:avoid;
+  break-inside:avoid;
+}
+.report-activity h3{
+  font-size:14.5px;
+  margin:0 0 4px;
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+}
+.report-activity h3 .ra-seq{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:11px;
+  color:#fff;
+  background:var(--pine);
+  border-radius:5px;
+  padding:1px 6px;
+}
+.report-activity .ra-type{
+  font-size:12px;
+  color:var(--pine-deep);
+  margin-bottom:6px;
+}
+.report-activity .ra-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:3px 14px;
+  font-size:12px;
+  color:#333;
+  margin-bottom:6px;
+}
+.report-activity .ra-grid span b{color:#666; font-weight:500;}
+.report-activity .ra-status{
+  display:inline-block;
+  font-size:11.5px;
+  font-weight:700;
+  padding:2px 8px;
+  border-radius:6px;
+  background:#eee;
+  margin-bottom:6px;
+}
+.report-activity .ra-notes{
+  font-size:12px;
+  color:#444;
+  background:#fafafa;
+  border-radius:6px;
+  padding:6px 8px;
+  margin-bottom:6px;
+}
+.report-activity .ra-hist-title{
+  font-size:11.5px;
+  font-weight:700;
+  color:#666;
+  margin:6px 0 3px;
+}
+.report-activity table.ra-hist{
+  width:100%;
+  border-collapse:collapse;
+  font-size:11px;
+}
+.report-activity table.ra-hist th, .report-activity table.ra-hist td{
+  border:1px solid #e2e2e2;
+  padding:3px 6px;
+  text-align:right;
+}
+.report-activity table.ra-hist th{
+  background:#f2f2f2;
+}
+.report-empty-hist{
+  font-size:11px;
+  color:#999;
+}
+
+@media print{
+  body *{ visibility:hidden; }
+  #reportView, #reportView *{ visibility:visible; }
+  #reportView{ position:absolute; inset:0; overflow:visible; }
+  .report-toolbar{ display:none; }
+  .report-activity{ page-break-inside:avoid; }
+}
 </style>
 </head>
 <body>
@@ -818,6 +985,7 @@ footer{
       <p class="subtitle">قائمة الأنشطة التجارية — متابعة ميدانية</p>
     </div>
     <div class="header-actions">
+      <button id="reportBtn" class="hdr-btn" title="تقرير مفصل">📄</button>
       <button id="settingsBtn" class="hdr-btn" title="إعدادات المزامنة السحابية">⚙️</button>
     </div>
   </div>
@@ -859,6 +1027,16 @@ footer{
   </div>
 </div>
 
+<!-- ===== Detailed Report View ===== -->
+<div id="reportView" class="report-view">
+  <div class="report-toolbar">
+    <button id="reportCloseBtn" class="report-tb-btn">✕ إغلاق</button>
+    <span class="report-tb-title">تقرير مفصل</span>
+    <button id="reportPrintBtn" class="report-tb-btn primary">🖨️ طباعة / حفظ PDF</button>
+  </div>
+  <div id="reportContent" class="report-content"></div>
+</div>
+
 <div id="list"></div>
 
 <footer>تم استخراج البيانات من الكشوفات الأصلية — يرجى مراجعة أي بيانات غير واضحة وتعديلها مباشرة هنا</footer>
@@ -874,6 +1052,18 @@ const REASON_LABELS = {
 const REASON_SUGGESTIONS_BY_STATUS = {
   "تعذر الاتصال": ["لم يتم الرد","مقفل","خارج نطاق التغطية","رقم غير صحيح","إرسال رسالة واتساب"],
   "تم التواصل": ["تأجيل بدون موعد","تأجيل بموعد","لا يريد التفعيل أبدًا","لا يريد التفعيل في الوقت الحالي"]
+};
+const STATUS_COLORS = {
+  "لم تتم الزيارة": "#8a8478",
+  "موعد معلق": "#128c6e",
+  "تم التواصل": "#b8862f",
+  "تعذر الاتصال": "#a13e3e",
+  "قيد الزيارة": "#2f6f8f",
+  "تمت الزيارة": "#2d5f52",
+  "تم الاشتراك": "#6b4a8a",
+  "فشل الزيارة": "#b5502e",
+  "مشترك بالفعل": "#2d7a4f",
+  "قائمة الحظر": "#4a2020"
 };
 const STORAGE_KEY = "masarat-contacts-v1";
 const SB_CONFIG_KEY = "masarat-sb-config-v1";
@@ -1542,6 +1732,71 @@ function openSettings(){
   settingsModal.classList.add("open");
 }
 function closeSettings(){ settingsModal.classList.remove("open"); }
+
+// ===== Detailed report =====
+function buildReport(){
+  const now = new Date();
+  const counts = {};
+  STATUS_OPTIONS.forEach(s=>counts[s]=0);
+  DATA.forEach(r=>{
+    const s = r.status && STATUS_OPTIONS.includes(r.status) ? r.status : "لم تتم الزيارة";
+    counts[s]++;
+  });
+
+  let html = `
+    <h1>تقرير مفصل — منظومة زيارات مسارات</h1>
+    <div class="r-meta">تاريخ التقرير: ${escapeHtml(now.toLocaleString("ar-LY",{dateStyle:"full",timeStyle:"short"}))} — إجمالي الأنشطة: ${DATA.length}</div>
+    <div class="report-summary">
+      ${STATUS_OPTIONS.map(s=>`<div class="rs-item"><b>${counts[s]}</b>${escapeHtml(s)}</div>`).join("")}
+    </div>
+  `;
+
+  const sorted = DATA.slice().sort((a,b)=> (a.seq||0)-(b.seq||0));
+  sorted.forEach(r=>{
+    const statusColor = STATUS_COLORS[r.status] || "#999";
+    const hist = (r.history||[]).slice().sort((a,b)=> new Date(a.ts||0) - new Date(b.ts||0));
+    const appLabel = r.app === "تطبيق آخر" ? (r.appOther || "تطبيق آخر") : (r.app || "—");
+    html += `
+      <div class="report-activity">
+        <h3><span>${escapeHtml(r.name)}</span><span class="ra-seq">#${escapeHtml(r.seq)}</span></h3>
+        <div class="ra-type">${escapeHtml(r.type)}</div>
+        <div class="ra-grid">
+          <span><b>الهاتف: </b>${escapeHtml(r.phone)}${r.phoneStruck ? " (ملغى)" : ""}</span>
+          <span><b>هاتف بديل: </b>${escapeHtml(r.phone2 || "—")}</span>
+          <span><b>المنطقة: </b>${escapeHtml(r.address)}</span>
+          <span><b>التطبيق: </b>${escapeHtml(appLabel)}</span>
+          <span><b>رمز الاشتراك: </b>${escapeHtml(r.code)}</span>
+          <span><b>رقم الحساب: </b>${escapeHtml(r.account)}</span>
+        </div>
+        <span class="ra-status" style="background:${statusColor}22; color:${statusColor};">${escapeHtml(r.status || "لم تتم الزيارة")}</span>
+        ${r.reason ? `<div class="ra-notes"><b>السبب: </b>${escapeHtml(r.reason)}</div>` : ""}
+        ${r.notes ? `<div class="ra-notes"><b>ملاحظة: </b>${escapeHtml(r.notes)}</div>` : ""}
+        <div class="ra-hist-title">سجل المحاولات (${hist.length})</div>
+        ${hist.length ? `
+          <table class="ra-hist">
+            <thead><tr><th>التاريخ والوقت</th><th>الحالة</th><th>السبب / الإجراء</th></tr></thead>
+            <tbody>
+              ${hist.map(h=>`<tr><td>${escapeHtml(h.when||"")}</td><td>${escapeHtml(h.status||"")}</td><td>${escapeHtml([h.reason,h.notes].filter(Boolean).join(" — "))}</td></tr>`).join("")}
+            </tbody>
+          </table>
+        ` : `<div class="report-empty-hist">لا توجد محاولات مسجلة</div>`}
+      </div>
+    `;
+  });
+
+  document.getElementById("reportContent").innerHTML = html;
+}
+
+document.getElementById("reportBtn").addEventListener("click", ()=>{
+  buildReport();
+  document.getElementById("reportView").classList.add("open");
+});
+document.getElementById("reportCloseBtn").addEventListener("click", ()=>{
+  document.getElementById("reportView").classList.remove("open");
+});
+document.getElementById("reportPrintBtn").addEventListener("click", ()=>{
+  window.print();
+});
 
 document.getElementById("settingsBtn").addEventListener("click", openSettings);
 document.getElementById("syncStatus").addEventListener("click", ()=>{
