@@ -6,6 +6,8 @@
 <title>منظومة زيارات مسارات</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --paper:#f6f4ee;
@@ -837,6 +839,7 @@ footer{
   position:sticky;
   top:0;
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
   justify-content:space-between;
   gap:8px;
@@ -849,12 +852,13 @@ footer{
   font-family:'Tajawal',sans-serif;
   font-weight:700;
   font-size:14px;
+  flex:0 0 auto;
 }
 .report-tb-btn{
   font-family:'Tajawal',sans-serif;
-  font-size:12.5px;
+  font-size:12px;
   font-weight:500;
-  padding:8px 12px;
+  padding:8px 10px;
   border-radius:8px;
   border:1px solid rgba(255,255,255,.3);
   background:rgba(255,255,255,.08);
@@ -1060,7 +1064,8 @@ footer{
   <div class="report-toolbar">
     <button id="reportCloseBtn" class="report-tb-btn">✕ إغلاق</button>
     <span class="report-tb-title">تقرير مفصل</span>
-    <button id="reportPrintBtn" class="report-tb-btn primary">🖨️ طباعة / حفظ PDF</button>
+    <button id="reportPdfBtn" class="report-tb-btn primary">⬇️ تنزيل PDF (بدون رابط)</button>
+    <button id="reportPrintBtn" class="report-tb-btn">🖨️ طباعة</button>
   </div>
   <div id="reportContent" class="report-content"></div>
 </div>
@@ -1831,6 +1836,59 @@ document.getElementById("reportCloseBtn").addEventListener("click", ()=>{
 document.getElementById("reportPrintBtn").addEventListener("click", ()=>{
   window.print();
 });
+
+document.getElementById("reportPdfBtn").addEventListener("click", exportReportPdf);
+
+async function exportReportPdf(){
+  if(typeof html2canvas === "undefined" || typeof window.jspdf === "undefined"){
+    showToast("تعذر تحميل مكوّن PDF — تحقق من اتصال الإنترنت وحاول مجددًا", "error");
+    return;
+  }
+  const btn = document.getElementById("reportPdfBtn");
+  const originalLabel = btn.textContent;
+  btn.textContent = "⏳ جاري التجهيز...";
+  btn.disabled = true;
+  try{
+    const contentEl = document.getElementById("reportContent");
+    const canvas = await html2canvas(contentEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      onclone: (clonedDoc) => {
+        clonedDoc.querySelectorAll(".ra-credit").forEach(el => { el.style.display = "block"; });
+      }
+    });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while(heightLeft > 0){
+      position = position - pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const stamp = new Date().toISOString().slice(0,10);
+    pdf.save(`تقرير-زيارات-مسارات-${stamp}.pdf`);
+    showToast("تم تنزيل التقرير بصيغة PDF بنجاح");
+  }catch(e){
+    console.error("PDF export failed", e);
+    showToast("تعذر إنشاء ملف PDF: " + (e.message || e), "error");
+  }finally{
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+  }
+}
 
 document.getElementById("settingsBtn").addEventListener("click", openSettings);
 document.getElementById("syncStatus").addEventListener("click", ()=>{
