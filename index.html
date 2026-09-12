@@ -981,22 +981,30 @@ footer{
   font-size:11px;
   color:#999;
 }
-.report-footer{
-  text-align:center;
-  font-size:12.5px;
-  font-weight:700;
-  color:var(--pine-deep);
-  margin-top:22px;
-  padding-top:14px;
-  border-top:1px solid #ddd;
+.print-page-signature{
+  display:none;
 }
 
 @media print{
+  @page{ margin:0; }
   body *{ visibility:hidden; }
   #reportView, #reportView *{ visibility:visible; }
   #reportView{ position:absolute; inset:0; overflow:visible; }
   .report-toolbar{ display:none; }
+  .report-content{ padding:16mm 14mm 22mm; max-width:none; }
   .report-activity{ page-break-inside:avoid; }
+  .print-page-signature{
+    display:block;
+    position:fixed;
+    bottom:6mm;
+    left:0;
+    right:0;
+    text-align:center;
+    font-family:'Tajawal',sans-serif;
+    font-size:11px;
+    font-weight:700;
+    color:#444;
+  }
 }
 </style>
 </head>
@@ -1060,6 +1068,7 @@ footer{
     <button id="reportPrintBtn" class="report-tb-btn primary">🖨️ طباعة / حفظ PDF</button>
   </div>
   <div id="reportContent" class="report-content"></div>
+  <div class="print-page-signature">م. بهاءالدين الجهاني</div>
 </div>
 
 <div id="list"></div>
@@ -1813,8 +1822,6 @@ function buildReport(){
       </div>
     `;
   });
-
-  html += `<div class="report-footer">م. بهاءالدين الجهاني</div>`;
 
   document.getElementById("reportContent").innerHTML = html;
 }
