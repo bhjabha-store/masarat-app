@@ -981,7 +981,7 @@ footer{
   font-size:11px;
   color:#999;
 }
-.print-page-signature{
+.ra-credit{
   display:none;
 }
 
@@ -993,17 +993,12 @@ footer{
   .report-toolbar{ display:none; }
   .report-content{ padding:16mm 14mm 22mm; max-width:none; }
   .report-activity{ page-break-inside:avoid; }
-  .print-page-signature{
+  .ra-credit{
     display:block;
-    position:fixed;
-    bottom:6mm;
-    left:0;
-    right:0;
-    text-align:center;
-    font-family:'Tajawal',sans-serif;
-    font-size:11px;
-    font-weight:700;
-    color:#444;
+    text-align:left;
+    font-size:9.5px;
+    color:#aaa;
+    margin-top:6px;
   }
 }
 </style>
@@ -1068,7 +1063,6 @@ footer{
     <button id="reportPrintBtn" class="report-tb-btn primary">🖨️ طباعة / حفظ PDF</button>
   </div>
   <div id="reportContent" class="report-content"></div>
-  <div class="print-page-signature">م. بهاءالدين الجهاني</div>
 </div>
 
 <div id="list"></div>
@@ -1819,6 +1813,7 @@ function buildReport(){
             </tbody>
           </table>
         ` : `<div class="report-empty-hist">لا توجد محاولات مسجلة</div>`}
+        <div class="ra-credit">م. بهاءالدين الجهاني</div>
       </div>
     `;
   });
