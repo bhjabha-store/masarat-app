@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -270,6 +271,50 @@ h1{
 .import-confirm-actions{
   display:flex;
   gap:8px;
+}
+
+/* ===== PDF ready banner ===== */
+.pdf-ready-bar{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:var(--pine-deep);
+  color:#fff;
+  padding:14px 16px;
+  display:none;
+  flex-direction:column;
+  gap:10px;
+  z-index:400;
+  box-shadow:0 -6px 20px rgba(0,0,0,.3);
+  font-size:13px;
+  font-family:'Tajawal',sans-serif;
+}
+.pdf-ready-bar.show{display:flex;}
+.pdf-ready-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.pdf-ready-open{
+  flex:1;
+  text-align:center;
+  background:#fff;
+  color:var(--pine-deep);
+  font-weight:700;
+  padding:11px;
+  border-radius:9px;
+  text-decoration:none;
+  font-size:14px;
+}
+.pdf-ready-close{
+  flex:0 0 auto;
+  background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.3);
+  color:#fff;
+  border-radius:8px;
+  padding:9px 12px;
+  cursor:pointer;
 }
 .import-confirm-actions button{flex:1;}
 
@@ -1844,6 +1889,27 @@ document.getElementById("reportPrintBtn").addEventListener("click", ()=>{
 
 document.getElementById("reportPdfBtn").addEventListener("click", exportReportPdf);
 
+function showPdfReadyBanner(blobUrl, filename){
+  let bar = document.getElementById("pdfReadyBar");
+  if(!bar){
+    bar = document.createElement("div");
+    bar.id = "pdfReadyBar";
+    bar.className = "pdf-ready-bar";
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `
+    <span>✅ الملف جاهز — إن لم يبدأ التنزيل تلقائيًا اضغط الزر:</span>
+    <div class="pdf-ready-actions">
+      <a href="${blobUrl}" download="${escapeHtml(filename)}" target="_blank" class="pdf-ready-open">فتح / حفظ الملف</a>
+      <button type="button" id="pdfReadyClose" class="pdf-ready-close">✕</button>
+    </div>
+  `;
+  bar.classList.add("show");
+  document.getElementById("pdfReadyClose").addEventListener("click", ()=>{
+    bar.classList.remove("show");
+  });
+}
+
 async function exportReportPdf(){
   if(typeof html2canvas === "undefined" || typeof window.jspdf === "undefined"){
     showToast("تعذر تحميل مكوّن PDF — تحقق من اتصال الإنترنت وحاول مجددًا", "error");
@@ -1861,19 +1927,43 @@ async function exportReportPdf(){
     const usableWidth = pageWidth - margin * 2;
     let cursorY = margin;
 
-    async function renderBlock(el, revealCredit){
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        onclone: (clonedDoc) => {
-          if(revealCredit){
-            clonedDoc.querySelectorAll(".ra-credit").forEach(e => { e.style.display = "block"; });
+    const reportEl = document.getElementById("reportContent");
+    const refWidthPx = reportEl.offsetWidth || 800;
+
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+    async function renderElements(elements, revealCredit){
+      const wrapper = document.createElement("div");
+      wrapper.style.position = "fixed";
+      wrapper.style.left = "-99999px";
+      wrapper.style.top = "0";
+      wrapper.style.width = refWidthPx + "px";
+      wrapper.style.background = "#ffffff";
+      wrapper.style.fontFamily = "'Tajawal', sans-serif";
+      elements.forEach(el => wrapper.appendChild(el.cloneNode(true)));
+      document.body.appendChild(wrapper);
+
+      let canvas;
+      try{
+        canvas = await html2canvas(wrapper, {
+          scale: 1.4,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          onclone: (clonedDoc) => {
+            if(revealCredit){
+              clonedDoc.querySelectorAll(".ra-credit").forEach(e => { e.style.display = "block"; });
+            }
           }
-        }
-      });
+        });
+      }finally{
+        document.body.removeChild(wrapper);
+      }
+
       const imgH = (canvas.height * usableWidth) / canvas.width;
-      return { data: canvas.toDataURL("image/jpeg", 0.9), h: imgH };
+      const data = canvas.toDataURL("image/jpeg", 0.82);
+      canvas.width = 0;
+      canvas.height = 0;
+      return { data, h: imgH };
     }
 
     function placeImage(img){
@@ -1881,32 +1971,53 @@ async function exportReportPdf(){
         pdf.addPage();
         cursorY = margin;
       }
-      // if a single block is taller than a full page, place it anyway at top of a fresh page
       if(img.h > pageHeight - margin * 2 && cursorY === margin){
         pdf.addImage(img.data, "JPEG", margin, cursorY, usableWidth, img.h);
-        cursorY = pageHeight; // force next block to new page
+        cursorY = pageHeight;
         return;
       }
       pdf.addImage(img.data, "JPEG", margin, cursorY, usableWidth, img.h);
       cursorY += img.h + 3;
     }
 
+    // header/summary block first
     const headerEl = document.getElementById("reportHeaderBlock");
     if(headerEl){
       btn.textContent = "⏳ جاري التجهيز... (الملخص)";
-      placeImage(await renderBlock(headerEl, false));
+      placeImage(await renderElements([headerEl], false));
+      await sleep(30);
     }
 
-    const activityEls = document.querySelectorAll("#reportActivitiesBlock .report-activity");
-    for(let i = 0; i < activityEls.length; i++){
-      btn.textContent = `⏳ جاري التجهيز... (${i + 1}/${activityEls.length})`;
-      const img = await renderBlock(activityEls[i], true);
+    // activities in small batches to keep memory low
+    const activityEls = Array.from(document.querySelectorAll("#reportActivitiesBlock .report-activity"));
+    const BATCH_SIZE = 6;
+    const totalBatches = Math.ceil(activityEls.length / BATCH_SIZE);
+
+    for(let b = 0; b < totalBatches; b++){
+      const batch = activityEls.slice(b * BATCH_SIZE, (b + 1) * BATCH_SIZE);
+      btn.textContent = `⏳ جاري التجهيز... (${Math.min((b + 1) * BATCH_SIZE, activityEls.length)}/${activityEls.length})`;
+      const img = await renderElements(batch, true);
       placeImage(img);
+      // brief pause every batch to let the browser breathe and free memory
+      await sleep(40);
     }
 
     const stamp = new Date().toISOString().slice(0,10);
-    pdf.save(`تقرير-زيارات-مسارات-${stamp}.pdf`);
-    showToast("تم تنزيل التقرير بصيغة PDF بنجاح");
+    const filename = `تقرير-زيارات-مسارات-${stamp}.pdf`;
+    const blob = pdf.output("blob");
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Try the automatic download first (works on most Android/desktop browsers)
+    try{
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }catch(e){ /* ignore, the manual banner below still covers it */ }
+
+    showPdfReadyBanner(blobUrl, filename);
   }catch(e){
     console.error("PDF export failed", e);
     showToast("تعذر إنشاء ملف PDF: " + (e.message || e), "error");
@@ -2039,4 +2150,3 @@ function showImportConfirm(count){
 </script>
 </body>
 </html>
-
