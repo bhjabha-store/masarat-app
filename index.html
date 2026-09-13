@@ -1782,11 +1782,14 @@ function buildReport(){
   });
 
   let html = `
-    <h1>تقرير مفصل - زيارات مسارات</h1>
-    <div class="r-meta">تاريخ التقرير: ${escapeHtml(now.toLocaleString("ar-LY",{dateStyle:"full",timeStyle:"short"}))} — إجمالي الأنشطة: ${DATA.length}</div>
-    <div class="report-summary">
-      ${STATUS_OPTIONS.map(s=>`<div class="rs-item"><b>${counts[s]}</b>${escapeHtml(s)}</div>`).join("")}
+    <div id="reportHeaderBlock">
+      <h1>تقرير مفصل - زيارات مسارات</h1>
+      <div class="r-meta">تاريخ التقرير: ${escapeHtml(now.toLocaleString("ar-LY",{dateStyle:"full",timeStyle:"short"}))} — إجمالي الأنشطة: ${DATA.length}</div>
+      <div class="report-summary">
+        ${STATUS_OPTIONS.map(s=>`<div class="rs-item"><b>${counts[s]}</b>${escapeHtml(s)}</div>`).join("")}
+      </div>
     </div>
+    <div id="reportActivitiesBlock">
   `;
 
   const sorted = DATA.slice().sort((a,b)=> (a.seq||0)-(b.seq||0));
@@ -1823,6 +1826,8 @@ function buildReport(){
     `;
   });
 
+  html += `</div>`;
+
   document.getElementById("reportContent").innerHTML = html;
 }
 
@@ -1846,36 +1851,57 @@ async function exportReportPdf(){
   }
   const btn = document.getElementById("reportPdfBtn");
   const originalLabel = btn.textContent;
-  btn.textContent = "⏳ جاري التجهيز...";
   btn.disabled = true;
   try{
-    const contentEl = document.getElementById("reportContent");
-    const canvas = await html2canvas(contentEl, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      onclone: (clonedDoc) => {
-        clonedDoc.querySelectorAll(".ra-credit").forEach(el => { el.style.display = "block"; });
-      }
-    });
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+    const margin = 8;
+    const usableWidth = pageWidth - margin * 2;
+    let cursorY = margin;
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+    async function renderBlock(el, revealCredit){
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        onclone: (clonedDoc) => {
+          if(revealCredit){
+            clonedDoc.querySelectorAll(".ra-credit").forEach(e => { e.style.display = "block"; });
+          }
+        }
+      });
+      const imgH = (canvas.height * usableWidth) / canvas.width;
+      return { data: canvas.toDataURL("image/jpeg", 0.9), h: imgH };
+    }
 
-    while(heightLeft > 0){
-      position = position - pageHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    function placeImage(img){
+      if(cursorY + img.h > pageHeight - margin && cursorY > margin){
+        pdf.addPage();
+        cursorY = margin;
+      }
+      // if a single block is taller than a full page, place it anyway at top of a fresh page
+      if(img.h > pageHeight - margin * 2 && cursorY === margin){
+        pdf.addImage(img.data, "JPEG", margin, cursorY, usableWidth, img.h);
+        cursorY = pageHeight; // force next block to new page
+        return;
+      }
+      pdf.addImage(img.data, "JPEG", margin, cursorY, usableWidth, img.h);
+      cursorY += img.h + 3;
+    }
+
+    const headerEl = document.getElementById("reportHeaderBlock");
+    if(headerEl){
+      btn.textContent = "⏳ جاري التجهيز... (الملخص)";
+      placeImage(await renderBlock(headerEl, false));
+    }
+
+    const activityEls = document.querySelectorAll("#reportActivitiesBlock .report-activity");
+    for(let i = 0; i < activityEls.length; i++){
+      btn.textContent = `⏳ جاري التجهيز... (${i + 1}/${activityEls.length})`;
+      const img = await renderBlock(activityEls[i], true);
+      placeImage(img);
     }
 
     const stamp = new Date().toISOString().slice(0,10);
